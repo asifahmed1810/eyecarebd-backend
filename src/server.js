@@ -1,25 +1,23 @@
-import http from "http";
 import { createApp } from "./app.js";
-import { env } from "./config/env.js";
 import { connectDb } from "./db/connect.js";
+import { env } from "./config/env.js";
 
-async function main() {
-  await connectDb(env.MONGODB_URI);
+// cache DB connection (important for serverless)
+let isConnected = false;
 
-  const app = createApp();
-  const server = http.createServer(app);
+export default async function handler(req, res) {
+  try {
+    // connect DB only once per cold start
+    if (!isConnected) {
+      await connectDb(env.MONGODB_URI);
+      isConnected = true;
+    }
 
-  
-  server.listen(env.PORT, () => {
-    console.log("MONGO URI:", env.MONGODB_URI);
-   
-    console.log(`[eyecare-bd-backend] listening on http://localhost:${env.PORT}`);
-    
-  });
+    const app = createApp();
+
+    return app(req, res);
+  } catch (err) {
+    console.error("Serverless error:", err);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
 }
-
-main().catch((err) => {
-  console.error("[eyecare-bd-backend] failed to start", err);
-  process.exitCode = 1;
-});
-
